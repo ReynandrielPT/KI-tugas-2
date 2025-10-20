@@ -1,0 +1,2 @@
+2025-10-20 15:51:41 [RECV] from=cli1 to=cli2 bytes=24 msg=9d29be7e42132ad9356da6e384f01972974620abef5ef24a
+2025-10-20 15:51:41 [SEND] to=cli2 from=cli1 bytes=24 msg=9d29be7e42132ad9356da6e384f01972974620abef5ef24a
