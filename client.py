@@ -1,265 +1,17 @@
 import socket
 import sys
 import json
+import threading
+import os
+import time
+import mimetypes
 from urllib.request import Request, urlopen
-
-# Classic DES implementation (ECB), for educational purposes.
-# Includes IP/FP, E, P, S-boxes, PC-1/PC-2, key schedule, 16 rounds.
+from urllib.parse import urlparse
+from des_traditional import encrypt_ecb_bytes, decrypt_ecb_bytes
 
 KEY = b'8bytekey'  # 8-byte DES key (64-bit with parity)
 SERVER_DEFAULT = 'http://172.168.100.1:8080'  # default relay server base
-BLOCK_SIZE = 8
 
-# Tables
-IP = [
-    58, 50, 42, 34, 26, 18, 10, 2,
-    60, 52, 44, 36, 28, 20, 12, 4,
-    62, 54, 46, 38, 30, 22, 14, 6,
-    64, 56, 48, 40, 32, 24, 16, 8,
-    57, 49, 41, 33, 25, 17, 9, 1,
-    59, 51, 43, 35, 27, 19, 11, 3,
-    61, 53, 45, 37, 29, 21, 13, 5,
-    63, 55, 47, 39, 31, 23, 15, 7,
-]
-
-FP = [
-    40, 8, 48, 16, 56, 24, 64, 32,
-    39, 7, 47, 15, 55, 23, 63, 31,
-    38, 6, 46, 14, 54, 22, 62, 30,
-    37, 5, 45, 13, 53, 21, 61, 29,
-    36, 4, 44, 12, 52, 20, 60, 28,
-    35, 3, 43, 11, 51, 19, 59, 27,
-    34, 2, 42, 10, 50, 18, 58, 26,
-    33, 1, 41, 9, 49, 17, 57, 25,
-]
-
-E = [
-    32, 1, 2, 3, 4, 5,
-    4, 5, 6, 7, 8, 9,
-    8, 9, 10, 11, 12, 13,
-    12, 13, 14, 15, 16, 17,
-    16, 17, 18, 19, 20, 21,
-    20, 21, 22, 23, 24, 25,
-    24, 25, 26, 27, 28, 29,
-    28, 29, 30, 31, 32, 1,
-]
-
-P = [
-    16, 7, 20, 21,
-    29, 12, 28, 17,
-    1, 15, 23, 26,
-    5, 18, 31, 10,
-    2, 8, 24, 14,
-    32, 27, 3, 9,
-    19, 13, 30, 6,
-    22, 11, 4, 25,
-]
-
-SBOXES = [
-    # S1
-    [
-        [14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7],
-        [0, 15, 7, 4, 14, 2, 13, 1, 10, 6, 12, 11, 9, 5, 3, 8],
-        [4, 1, 14, 8, 13, 6, 2, 11, 15, 12, 9, 7, 3, 10, 5, 0],
-        [15, 12, 8, 2, 4, 9, 1, 7, 5, 11, 3, 14, 10, 0, 6, 13],
-    ],
-    # S2
-    [
-        [15, 1, 8, 14, 6, 11, 3, 4, 9, 7, 2, 13, 12, 0, 5, 10],
-        [3, 13, 4, 7, 15, 2, 8, 14, 12, 0, 1, 10, 6, 9, 11, 5],
-        [0, 14, 7, 11, 10, 4, 13, 1, 5, 8, 12, 6, 9, 3, 2, 15],
-        [13, 8, 10, 1, 3, 15, 4, 2, 11, 6, 7, 12, 0, 5, 14, 9],
-    ],
-    # S3
-    [
-        [10, 0, 9, 14, 6, 3, 15, 5, 1, 13, 12, 7, 11, 4, 2, 8],
-        [13, 7, 0, 9, 3, 4, 6, 10, 2, 8, 5, 14, 12, 11, 15, 1],
-        [13, 6, 4, 9, 8, 15, 3, 0, 11, 1, 2, 12, 5, 10, 14, 7],
-        [1, 10, 13, 0, 6, 9, 8, 7, 4, 15, 14, 3, 11, 5, 2, 12],
-    ],
-    # S4
-    [
-        [7, 13, 14, 3, 0, 6, 9, 10, 1, 2, 8, 5, 11, 12, 4, 15],
-        [13, 8, 11, 5, 6, 15, 0, 3, 4, 7, 2, 12, 1, 10, 14, 9],
-        [10, 6, 9, 0, 12, 11, 7, 13, 15, 1, 3, 14, 5, 2, 8, 4],
-        [3, 15, 0, 6, 10, 1, 13, 8, 9, 4, 5, 11, 12, 7, 2, 14],
-    ],
-    # S5
-    [
-        [2, 12, 4, 1, 7, 10, 11, 6, 8, 5, 3, 15, 13, 0, 14, 9],
-        [14, 11, 2, 12, 4, 7, 13, 1, 5, 0, 15, 10, 3, 9, 8, 6],
-        [4, 2, 1, 11, 10, 13, 7, 8, 15, 9, 12, 5, 6, 3, 0, 14],
-        [11, 8, 12, 7, 1, 14, 2, 13, 6, 15, 0, 9, 10, 4, 5, 3],
-    ],
-    # S6
-    [
-        [12, 1, 10, 15, 9, 2, 6, 8, 0, 13, 3, 4, 14, 7, 5, 11],
-        [10, 15, 4, 2, 7, 12, 9, 5, 6, 1, 13, 14, 0, 11, 3, 8],
-        [9, 14, 15, 5, 2, 8, 12, 3, 7, 0, 4, 10, 1, 13, 11, 6],
-        [4, 3, 2, 12, 9, 5, 15, 10, 11, 14, 1, 7, 6, 0, 8, 13],
-    ],
-    # S7
-    [
-        [4, 11, 2, 14, 15, 0, 8, 13, 3, 12, 9, 7, 5, 10, 6, 1],
-        [13, 0, 11, 7, 4, 9, 1, 10, 14, 3, 5, 12, 2, 15, 8, 6],
-        [1, 4, 11, 13, 12, 3, 7, 14, 10, 15, 6, 8, 0, 5, 9, 2],
-        [6, 11, 13, 8, 1, 4, 10, 7, 9, 5, 0, 15, 14, 2, 3, 12],
-    ],
-    # S8
-    [
-        [13, 2, 8, 4, 6, 15, 11, 1, 10, 9, 3, 14, 5, 0, 12, 7],
-        [1, 15, 13, 8, 10, 3, 7, 4, 12, 5, 6, 11, 0, 14, 9, 2],
-        [7, 11, 4, 1, 9, 12, 14, 2, 0, 6, 10, 13, 15, 3, 5, 8],
-        [2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11],
-    ],
-]
-
-PC1 = [
-    57, 49, 41, 33, 25, 17, 9,
-    1, 58, 50, 42, 34, 26, 18,
-    10, 2, 59, 51, 43, 35, 27,
-    19, 11, 3, 60, 52, 44, 36,
-    63, 55, 47, 39, 31, 23, 15,
-    7, 62, 54, 46, 38, 30, 22,
-    14, 6, 61, 53, 45, 37, 29,
-    21, 13, 5, 28, 20, 12, 4,
-]
-
-PC2 = [
-    14, 17, 11, 24, 1, 5,
-    3, 28, 15, 6, 21, 10,
-    23, 19, 12, 4, 26, 8,
-    16, 7, 27, 20, 13, 2,
-    41, 52, 31, 37, 47, 55,
-    30, 40, 51, 45, 33, 48,
-    44, 49, 39, 56, 34, 53,
-    46, 42, 50, 36, 29, 32,
-]
-
-SHIFTS = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
-
-
-def bytes_to_bits(b: bytes) -> list:
-    bits = []
-    for byte in b:
-        for i in range(7, -1, -1):
-            bits.append((byte >> i) & 1)
-    return bits
-
-
-def bits_to_bytes(bits: list) -> bytes:
-    out = bytearray()
-    for i in range(0, len(bits), 8):
-        byte = 0
-        for j in range(8):
-            byte = (byte << 1) | bits[i + j]
-        out.append(byte)
-    return bytes(out)
-
-
-def permute(bits: list, table: list) -> list:
-    # Table indices are 1-based
-    return [bits[i - 1] for i in table]
-
-
-def left_rotate(lst: list, n: int) -> list:
-    return lst[n:] + lst[:n]
-
-
-def xor_bits(a: list, b: list) -> list:
-    return [i ^ j for i, j in zip(a, b)]
-
-
-def sbox_substitution(bits48: list) -> list:
-    out = []
-    for i in range(8):
-        block = bits48[i * 6:(i + 1) * 6]
-        row = (block[0] << 1) | block[5]
-        col = (block[1] << 3) | (block[2] << 2) | (block[3] << 1) | block[4]
-        val = SBOXES[i][row][col]
-        # 4-bit to bits
-        out.extend([(val >> 3) & 1, (val >> 2) & 1, (val >> 1) & 1, val & 1])
-    return out
-
-
-def feistel(right32: list, subkey48: list) -> list:
-    expanded = permute(right32, E)
-    xored = xor_bits(expanded, subkey48)
-    sboxed = sbox_substitution(xored)
-    return permute(sboxed, P)
-
-
-def generate_subkeys(key8: bytes) -> list:
-    key_bits = bytes_to_bits(key8)
-    key56 = permute(key_bits, PC1)
-    c = key56[:28]
-    d = key56[28:]
-    subkeys = []
-    for shift in SHIFTS:
-        c = left_rotate(c, shift)
-        d = left_rotate(d, shift)
-        cd = c + d
-        subkeys.append(permute(cd, PC2))
-    return subkeys
-
-
-def des_block_encrypt(block8: bytes, subkeys: list) -> bytes:
-    bits = bytes_to_bits(block8)
-    bits = permute(bits, IP)
-    l = bits[:32]
-    r = bits[32:]
-    for i in range(16):
-        f = feistel(r, subkeys[i])
-        l, r = r, xor_bits(l, f)
-    # combine R then L (swap) before FP
-    preoutput = r + l
-    out_bits = permute(preoutput, FP)
-    return bits_to_bytes(out_bits)
-
-
-def des_block_decrypt(block8: bytes, subkeys: list) -> bytes:
-    bits = bytes_to_bits(block8)
-    bits = permute(bits, IP)
-    l = bits[:32]
-    r = bits[32:]
-    for i in range(15, -1, -1):
-        f = feistel(r, subkeys[i])
-        l, r = r, xor_bits(l, f)
-    preoutput = r + l
-    out_bits = permute(preoutput, FP)
-    return bits_to_bytes(out_bits)
-
-
-def pkcs5_pad(data: bytes) -> bytes:
-    pad_len = BLOCK_SIZE - (len(data) % BLOCK_SIZE)
-    return data + bytes([pad_len] * pad_len)
-
-
-def pkcs5_unpad(data: bytes) -> bytes:
-    if not data:
-        return data
-    pad_len = data[-1]
-    if pad_len < 1 or pad_len > BLOCK_SIZE:
-        raise ValueError('Invalid padding length')
-    if data[-pad_len:] != bytes([pad_len] * pad_len):
-        raise ValueError('Invalid padding bytes')
-    return data[:-pad_len]
-
-
-def des_encrypt_ecb(data: bytes, key8: bytes) -> bytes:
-    subkeys = generate_subkeys(key8)
-    out = b''
-    for i in range(0, len(data), BLOCK_SIZE):
-        out += des_block_encrypt(data[i:i + BLOCK_SIZE], subkeys)
-    return out
-
-
-def des_decrypt_ecb(data: bytes, key8: bytes) -> bytes:
-    subkeys = generate_subkeys(key8)
-    out = b''
-    for i in range(0, len(data), BLOCK_SIZE):
-        out += des_block_decrypt(data[i:i + BLOCK_SIZE], subkeys)
-    return out
 
 
 def http_post_json(url: str, obj: dict) -> tuple[int, bytes]:
@@ -275,6 +27,222 @@ def http_get(url: str) -> tuple[int, bytes]:
         return resp.getcode(), resp.read()
 
 
+def http_post_json_verbose(base: str, path: str, obj: dict) -> dict:
+    # Returns dict with request_text, response_text, status, body
+    body_bytes = json.dumps(obj, ensure_ascii=False).encode('utf-8')
+    headers = {
+        'Host': urlparse(base).netloc,
+        'Content-Type': 'application/json',
+        'Content-Length': str(len(body_bytes)),
+        'Connection': 'close',
+    }
+    req_text = render_http('POST', path, headers, body_bytes)
+    url = base.rstrip('/') + path
+    req = Request(url, data=body_bytes, headers={'Content-Type': 'application/json'}, method='POST')
+    with urlopen(req) as resp:
+        status = resp.getcode()
+        reason = getattr(resp, 'reason', '') or ''
+        resp_headers = {k: v for k, v in resp.getheaders()}
+        resp_body = resp.read()
+    resp_text = render_http_response(status, reason, resp_headers, resp_body)
+    return {'request_text': req_text, 'response_text': resp_text, 'status': status, 'body': resp_body}
+
+
+def http_get_verbose(base: str, path: str) -> dict:
+    headers = {
+        'Host': urlparse(base).netloc,
+        'Connection': 'close',
+    }
+    req_text = render_http('GET', path, headers, b'')
+    url = base.rstrip('/') + path
+    req = Request(url, method='GET')
+    with urlopen(req) as resp:
+        status = resp.getcode()
+        reason = getattr(resp, 'reason', '') or ''
+        resp_headers = {k: v for k, v in resp.getheaders()}
+        resp_body = resp.read()
+    resp_text = render_http_response(status, reason, resp_headers, resp_body)
+    return {'request_text': req_text, 'response_text': resp_text, 'status': status, 'body': resp_body}
+
+
+# ---------------- Embedded lightweight relay server (optional) ---------------- #
+_embedded_started = False
+
+
+def _embedded_parse_request(conn):
+    data = b''
+    while b"\r\n\r\n" not in data:
+        chunk = conn.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    header_part, _, rest = data.partition(b"\r\n\r\n")
+    lines = header_part.decode('iso-8859-1', errors='replace').split('\r\n')
+    if not lines or ' ' not in lines[0]:
+        return '', '', '', {}, b'', data
+    method, path, version = (lines[0].split(' ') + ['',''])[:3]
+    headers = {}
+    for line in lines[1:]:
+        if ':' in line:
+            k, v = line.split(':', 1)
+            headers[k.strip().lower()] = v.strip()
+    length = int(headers.get('content-length', '0') or '0')
+    body = rest
+    while len(body) < length:
+        chunk = conn.recv(4096)
+        if not chunk:
+            break
+        body += chunk
+    raw = header_part + b"\r\n\r\n" + body[:length]
+    return method, path, version, headers, body[:length], raw
+
+
+def _embedded_send_response(conn, status, reason, headers, body):
+    hdrs = dict(headers or {})
+    hdrs.setdefault('Content-Length', str(len(body or b'')))
+    hdrs.setdefault('Connection', 'close')
+    lines = [f"HTTP/1.1 {status} {reason}\r\n"]
+    for k, v in hdrs.items():
+        lines.append(f"{k}: {v}\r\n")
+    lines.append("\r\n")
+    try:
+        conn.sendall(''.join(lines).encode('iso-8859-1') + (body or b''))
+    except Exception:
+        pass
+
+
+def _embedded_server_loop(host: str, port: int):
+    import threading as _th
+    from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
+    inboxes: dict[str, list[dict]] = {}
+    cond = _th.Condition()
+
+    def enqueue(recipient: str, payload: dict):
+        with cond:
+            inboxes.setdefault(recipient, []).append(payload)
+            cond.notify_all()
+
+    def dequeue(recipient: str):
+        with cond:
+            q = inboxes.get(recipient, [])
+            if q:
+                return q.pop(0)
+            return None
+
+    def handle(conn, addr):
+        try:
+            method, path, version, headers, body, raw = _embedded_parse_request(conn)
+            if not method:
+                _embedded_send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
+                return
+            parsed = _urlparse(path)
+            if method == 'POST' and parsed.path == '/send':
+                try:
+                    payload = json.loads(body.decode('utf-8'))
+                except Exception:
+                    _embedded_send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
+                    return
+                if not {'from','to'}.issubset(payload.keys()):
+                    _embedded_send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
+                    return
+                cipher_hex = payload.get('cipher') or payload.get('msg')
+                if not isinstance(cipher_hex, str):
+                    _embedded_send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
+                    return
+                forwarded = {'from': payload['from'], 'msg': cipher_hex}
+                for k in ('type','filename','mimetype','size'):
+                    if k in payload:
+                        forwarded[k] = payload[k]
+                enqueue(payload['to'], forwarded)
+                resp = json.dumps({'queued': True}).encode('utf-8')
+                _embedded_send_response(conn, 200, 'OK', {'Content-Type': 'application/json', 'Content-Length': str(len(resp))}, resp)
+                return
+            if method == 'GET' and parsed.path == '/recv':
+                qs = _parse_qs(parsed.query or '')
+                client_id = (qs.get('client') or [''])[0]
+                wait_param = (qs.get('wait') or ['0'])[0]
+                try:
+                    wait_secs = max(0, min(60, int(wait_param)))
+                except ValueError:
+                    wait_secs = 0
+                if not client_id:
+                    _embedded_send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
+                    return
+                msg = dequeue(client_id)
+                if msg is None and wait_secs > 0:
+                    with cond:
+                        cond.wait(timeout=wait_secs)
+                    msg = dequeue(client_id)
+                if msg is None:
+                    _embedded_send_response(conn, 204, 'No Content', {'Content-Type': 'text/plain'}, b'')
+                    return
+                resp = json.dumps(msg).encode('utf-8')
+                _embedded_send_response(conn, 200, 'OK', {'Content-Type': 'application/json', 'Content-Length': str(len(resp))}, resp)
+                return
+            _embedded_send_response(conn, 404, 'Not Found', {'Content-Type': 'text/plain'}, b'')
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, port))
+            s.listen(5)
+        except Exception:
+            return  # likely already running elsewhere
+        while True:
+            conn, addr = s.accept()
+            t = threading.Thread(target=handle, args=(conn, addr), daemon=True)
+            t.start()
+
+
+def start_embedded_server_if_needed(base_url: str):
+    global _embedded_started
+    if _embedded_started:
+        return
+    try:
+        # Probe
+        res = http_get_verbose(base_url, f"/recv?client=__probe__&wait=0")
+        # If reachable, do not start embedded
+        if res['status'] in (200, 204, 400):
+            _embedded_started = True  # mark checked to avoid repeated probes
+            return
+    except Exception:
+        pass
+    # Start local embedded server on the same port (bind localhost)
+    parsed = urlparse(base_url)
+    host = '127.0.0.1'
+    port = int(parsed.port or (443 if parsed.scheme == 'https' else 80))
+    try:
+        threading.Thread(target=_embedded_server_loop, args=(host, port), daemon=True).start()
+        _embedded_started = True
+        print(f"[info] Embedded relay started on http://{host}:{port}")
+    except Exception as e:
+        print(f"[warn] Failed to start embedded relay: {e}")
+
+
+def render_http(method: str, path: str, headers: dict, body: bytes) -> str:
+    lines = [f"{method} {path} HTTP/1.1\r\n"]
+    for k, v in headers.items():
+        lines.append(f"{k}: {v}\r\n")
+    lines.append("\r\n")
+    text = ''.join(lines) + (body.decode('utf-8', errors='replace'))
+    return text
+
+
+def render_http_response(status: int, reason: str, headers: dict, body: bytes) -> str:
+    status_line = f"HTTP/1.1 {status} {reason or ''}\r\n"
+    lines = [status_line]
+    for k, v in headers.items():
+        lines.append(f"{k}: {v}\r\n")
+    lines.append("\r\n")
+    text = ''.join(lines) + (body.decode('utf-8', errors='replace'))
+    return text
+
+
 def usage():
     print(
         "Usage:\n"
@@ -282,16 +250,32 @@ def usage():
         "  Receiver (long poll): python client.py [--server URL] recv <client_id>\n"
         "  Sender by IP: python client.py sendip <server_ip|url> <receiver_ip> <message>\n"
         "  Receiver by IP: python client.py recvip <server_ip|url> <own_ip>\n"
+        "\nQuick start chat:\n"
+        "  python client.py <peer_ip_or_id>\n"
+        "\nPeer chat modes:\n"
+        "  Host (listen): python client.py [--server URL] host [my_id]\n"
+        "  Join (connect): python client.py [--server URL] join <peer_id> [my_id]\n"
+        "    While running: type a message and press Enter to send.\n"
+        "    Commands: /to <peer_id>, /sendfile <path>, /quit\n"
+        "\nContinuous listening:\n"
+        "  Listen (idle until Ctrl+C): python client.py [--server URL] listen [my_id]\n"
         "Options:\n"
     f"  --server URL    Base URL of relay server (default {SERVER_DEFAULT})\n"
     )
 
 
 def main():
-    # Convenience: allow `python client.py "message..."` to act as
-    # send from cli1 -> cli2 using defaults.
-    if len(sys.argv) == 2 and sys.argv[1] not in ("send", "recv", "rcv", "--server"):
-        sys.argv = [sys.argv[0], "send", "cli1", "cli2", sys.argv[1]]
+    # Convenience:
+    #  - `python client.py <peer>` => join <peer>
+    #  - `python client.py <peer> <my_id>` => join <peer> <my_id>
+    if len(sys.argv) in (2, 3) and sys.argv[1] not in ("send", "recv", "rcv", "--server", "host", "join", "listen", "sendip", "recvip"):
+        if len(sys.argv) == 2:
+            peer = sys.argv[1]
+            sys.argv = [sys.argv[0], "join", peer]
+        else:
+            peer = sys.argv[1]
+            myid = sys.argv[2]
+            sys.argv = [sys.argv[0], "join", peer, myid]
 
     # Parse optional --server
     base = SERVER_DEFAULT
@@ -312,9 +296,8 @@ def main():
     mode = args[0]
     if mode == 'rcv':
         mode = 'recv'
-    
+
     def make_base(server_arg: str) -> str:
-        # Accept raw IP or full URL
         if server_arg.startswith('http://') or server_arg.startswith('https://'):
             return server_arg
         return f"http://{server_arg}:8080"
@@ -323,7 +306,6 @@ def main():
         try:
             host_only = target_host
             if host_only.startswith('http://') or host_only.startswith('https://'):
-                # crude parse
                 host_only = host_only.split('://', 1)[1].split('/', 1)[0].split(':', 1)[0]
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect((host_only, 80))
@@ -335,29 +317,249 @@ def main():
                 return socket.gethostbyname(socket.gethostname())
             except Exception:
                 return 'unknown'
-    if mode == 'send':
+
+    if mode in ('host', 'join'):
+        # Ensure a relay is available (start embedded if remote is unreachable)
+        start_embedded_server_if_needed(base)
+        my_id = None
+        peer_id = None
+        if mode == 'host':
+            if len(args) >= 2:
+                my_id = args[1]
+        else:  # join
+            if len(args) < 2:
+                usage()
+                return
+            peer_id = args[1]
+            if len(args) >= 3:
+                my_id = args[2]
+        if not my_id:
+            my_id = get_local_ip_towards(base)
+        print(f"[info] Using my_id={my_id}")
+        if peer_id:
+            print(f"[info] Peer set to {peer_id}")
+        else:
+            # Prompt once to allow immediate chatting without /to
+            try:
+                initial_peer = input("[setup] Enter peer id to chat (press Enter to just listen): ").strip()
+                if initial_peer:
+                    peer_id = initial_peer
+                    print(f"[info] Peer set to {peer_id}")
+            except (EOFError, KeyboardInterrupt):
+                pass
+
+        # Quick server reachability test (non-blocking)
+        try:
+            probe = http_get_verbose(base, f"/recv?client={my_id}&wait=0")
+            if probe['status'] in (200, 204):
+                print(f"[info] Server reachable at {base} (HTTP {probe['status']}).")
+            else:
+                print(f"[warn] Server responded with HTTP {probe['status']}; continuing to listen.")
+        except Exception as e:
+            print(f"[warn] Server not reachable ({e}); will keep listening and retry.")
+
+        # Optional: send a small presence/hello packet so the peer sees we are online
+        if peer_id:
+            try:
+                hello = encrypt_ecb_bytes(b"HELLO", KEY).hex()
+                payload = { 'from': my_id, 'to': peer_id, 'type': 'presence', 'cipher': hello, 'size': 5 }
+                res = http_post_json_verbose(base, '/send', payload)
+                print("\n>>> HTTP REQUEST (presence)")
+                print(res['request_text'])
+                print("<<< HTTP RESPONSE (presence)")
+                print(res['response_text'])
+            except Exception as e:
+                print(f"[warn] Presence send failed: {e}")
+
+        stop_flag = {'stop': False}
+
+        def receiver_loop():
+            save_dir = os.path.join(os.getcwd(), 'received')
+            os.makedirs(save_dir, exist_ok=True)
+            while not stop_flag['stop']:
+                try:
+                    res = http_get_verbose(base, f"/recv?client={my_id}&wait=30")
+                except Exception as e:
+                    print(f"[recv] error: {e}")
+                    time.sleep(1)
+                    continue
+                if res['status'] == 200:
+                    print("\n<<< HTTP RESPONSE (recv)")
+                    print(res['response_text'])
+                    try:
+                        payload = json.loads(res['body'].decode('utf-8'))
+                    except Exception as e:
+                        print(f"[recv] invalid JSON: {e}")
+                        continue
+                    cipher_hex = payload.get('msg') or payload.get('cipher') or ''
+                    print(f"[recv] Encrypted (hex): {cipher_hex}")
+                    try:
+                        pt = decrypt_ecb_bytes(bytes.fromhex(cipher_hex), KEY)
+                    except Exception as e:
+                        print(f"[recv] decrypt error: {e}")
+                        continue
+                    mtype = payload.get('type') or 'text'
+                    if mtype == 'image':
+                        fname = payload.get('filename') or f"received_{int(time.time())}.bin"
+                        out_path = os.path.join(save_dir, fname)
+                        try:
+                            with open(out_path, 'wb') as f:
+                                f.write(pt)
+                            print(f"[recv] Saved image to {out_path}")
+                        except Exception as e:
+                            print(f"[recv] save error: {e}")
+                    else:
+                        try:
+                            print("[recv] Decrypted:", pt.decode('utf-8', errors='replace'))
+                        except Exception:
+                            print("[recv] Decrypted bytes:", pt[:64])
+                elif res['status'] == 204:
+                    pass
+                else:
+                    try:
+                        print(f"[recv] HTTP {res['status']}\n" + res['response_text'])
+                    except Exception:
+                        pass
+
+        t = threading.Thread(target=receiver_loop, daemon=True)
+        t.start()
+        print("[chat] Type messages and press Enter. Use /to <peer>, /sendfile <path>, /quit")
+        while True:
+            try:
+                line = input('> ').strip()
+            except (EOFError, KeyboardInterrupt):
+                line = '/quit'
+            if not line:
+                continue
+            if line.lower().startswith('/quit'):
+                stop_flag['stop'] = True
+                t.join(timeout=0.2)
+                return
+            if line.lower().startswith('/to '):
+                peer_id = line.split(None, 1)[1].strip()
+                print(f"[chat] Peer set to {peer_id}")
+                continue
+            if not peer_id:
+                print("[chat] Set a peer first: /to <peer_id>")
+                continue
+            if line.lower().startswith('/sendfile '):
+                path = line.split(None, 1)[1].strip().strip('"')
+                if not os.path.isfile(path):
+                    print(f"[send] File not found: {path}")
+                    continue
+                with open(path, 'rb') as f:
+                    data = f.read()
+                cipher = encrypt_ecb_bytes(data, KEY)
+                print("[send] Plain bytes:", f"{len(data)} bytes")
+                print("[send] Encrypted (hex):", cipher.hex())
+                filename = os.path.basename(path)
+                mimetype = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                payload = {
+                    'from': my_id,
+                    'to': peer_id,
+                    'type': 'image' if mimetype.startswith('image/') else 'file',
+                    'filename': filename,
+                    'mimetype': mimetype,
+                    'cipher': cipher.hex(),
+                    'size': len(data),
+                }
+                res = http_post_json_verbose(base, '/send', payload)
+                print("\n>>> HTTP REQUEST (send)")
+                print(res['request_text'])
+                print("<<< HTTP RESPONSE (send)")
+                print(res['response_text'])
+                continue
+            # Send as text
+            data = line.encode('utf-8')
+            cipher = encrypt_ecb_bytes(data, KEY)
+            print("[send] Plaintext:", line)
+            print("[send] Encrypted (hex):", cipher.hex())
+            payload = {
+                'from': my_id,
+                'to': peer_id,
+                'type': 'text',
+                'cipher': cipher.hex(),
+                'size': len(data),
+            }
+            res = http_post_json_verbose(base, '/send', payload)
+            print("\n>>> HTTP REQUEST (send)")
+            print(res['request_text'])
+            print("<<< HTTP RESPONSE (send)")
+            print(res['response_text'])
+
+    elif mode == 'listen':
+        # Ensure a relay is available
+        start_embedded_server_if_needed(base)
+        my_id = args[1] if len(args) >= 2 else None
+        if not my_id:
+            my_id = get_local_ip_towards(base)
+        print(f"[listen] Listening as {my_id} on {base}. Press Ctrl+C to disconnect.")
+        save_dir = os.path.join(os.getcwd(), 'received')
+        os.makedirs(save_dir, exist_ok=True)
+        try:
+            while True:
+                try:
+                    res = http_get_verbose(base, f"/recv?client={my_id}&wait=30")
+                except Exception as e:
+                    print(f"[listen] error: {e}")
+                    time.sleep(1)
+                    continue
+                if res['status'] == 200:
+                    print("\n<<< HTTP RESPONSE (recv)")
+                    print(res['response_text'])
+                    try:
+                        payload = json.loads(res['body'].decode('utf-8'))
+                    except Exception as e:
+                        print(f"[listen] invalid JSON: {e}")
+                        continue
+                    cipher_hex = payload.get('msg') or payload.get('cipher') or ''
+                    print(f"[listen] Encrypted (hex): {cipher_hex}")
+                    try:
+                        pt = decrypt_ecb_bytes(bytes.fromhex(cipher_hex), KEY)
+                    except Exception as e:
+                        print(f"[listen] decrypt error: {e}")
+                        continue
+                    mtype = payload.get('type') or 'text'
+                    if mtype == 'image':
+                        fname = payload.get('filename') or f"received_{int(time.time())}.bin"
+                        out_path = os.path.join(save_dir, fname)
+                        try:
+                            with open(out_path, 'wb') as f:
+                                f.write(pt)
+                            print(f"[listen] Saved image to {out_path}")
+                        except Exception as e:
+                            print(f"[listen] save error: {e}")
+                    else:
+                        print("[listen] Decrypted:", pt.decode('utf-8', errors='replace'))
+                elif res['status'] == 204:
+                    pass
+                else:
+                    print(f"[listen] HTTP {res['status']}\n" + res['response_text'])
+        except KeyboardInterrupt:
+            print("\n[listen] Disconnected.")
+
+    elif mode == 'send':
         if len(args) < 4:
             usage()
             return
         client_from = args[1]
         client_to = args[2]
         message = ' '.join(args[3:])
-        padded = pkcs5_pad(message.encode('utf-8'))
-        encrypted = des_encrypt_ecb(padded, KEY)
+        encrypted = encrypt_ecb_bytes(message.encode('utf-8'), KEY)
         print('Plaintext :', message)
         print('Encrypted :', encrypted.hex())
         status, body = http_post_json(base + '/send', {
             'from': client_from,
             'to': client_to,
-            'msg': encrypted.hex(),
+            'cipher': encrypted.hex(),
         })
         print('Server response:', status, body.decode('utf-8') if body else '')
+
     elif mode == 'recv':
         if len(args) < 2:
             usage()
             return
         client_id = args[1]
-        # long poll up to 30 seconds
         status, body = http_get(base + '/recv?client=' + client_id + '&wait=30')
         print('HTTP status:', status)
         if status == 204:
@@ -369,18 +571,14 @@ def main():
         payload = json.loads(body.decode('utf-8'))
         print('Received JSON:', payload)
         try:
-            cipher_hex = payload['msg']
+            cipher_hex = payload.get('msg') or payload.get('cipher')
             cipher_bytes = bytes.fromhex(cipher_hex)
-            out = des_decrypt_ecb(cipher_bytes, KEY)
-            try:
-                plain = pkcs5_unpad(out)
-            except Exception:
-                plain = out
-            print('Decrypted  :', plain.decode('utf-8', errors='replace'))
+            plain_bytes = decrypt_ecb_bytes(cipher_bytes, KEY)
+            print('Decrypted  :', plain_bytes.decode('utf-8', errors='replace'))
         except Exception as e:
             print('Decrypt error:', e)
+
     elif mode == 'sendip':
-        # Usage: sendip <server_ip|url> <receiver_ip> <message>
         if len(args) < 4:
             usage()
             return
@@ -388,8 +586,7 @@ def main():
         receiver_ip = args[2]
         message = ' '.join(args[3:])
         sender_id = get_local_ip_towards(base)
-        padded = pkcs5_pad(message.encode('utf-8'))
-        encrypted = des_encrypt_ecb(padded, KEY)
+        encrypted = encrypt_ecb_bytes(message.encode('utf-8'), KEY)
         print('Plaintext :', message)
         print('From      :', sender_id)
         print('To        :', receiver_ip)
@@ -397,11 +594,11 @@ def main():
         status, body = http_post_json(base + '/send', {
             'from': sender_id,
             'to': receiver_ip,
-            'msg': encrypted.hex(),
+            'cipher': encrypted.hex(),
         })
         print('Server response:', status, body.decode('utf-8') if body else '')
+
     elif mode == 'recvip':
-        # Usage: recvip <server_ip|url> <own_ip>
         if len(args) < 3:
             usage()
             return
@@ -418,14 +615,10 @@ def main():
         payload = json.loads(body.decode('utf-8'))
         print('Received JSON:', payload)
         try:
-            cipher_hex = payload['msg']
+            cipher_hex = payload.get('msg') or payload.get('cipher')
             cipher_bytes = bytes.fromhex(cipher_hex)
-            out = des_decrypt_ecb(cipher_bytes, KEY)
-            try:
-                plain = pkcs5_unpad(out)
-            except Exception:
-                plain = out
-            print('Decrypted  :', plain.decode('utf-8', errors='replace'))
+            plain_bytes = decrypt_ecb_bytes(cipher_bytes, KEY)
+            print('Decrypted  :', plain_bytes.decode('utf-8', errors='replace'))
         except Exception as e:
             print('Decrypt error:', e)
     else:
@@ -433,4 +626,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[exit] Interrupted by user.")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            pass

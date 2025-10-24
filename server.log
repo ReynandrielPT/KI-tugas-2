@@ -1,2 +1,386 @@
 2025-10-20 15:51:41 [RECV] from=cli1 to=cli2 bytes=24 msg=9d29be7e42132ad9356da6e384f01972974620abef5ef24a
 2025-10-20 15:51:41 [SEND] to=cli2 from=cli1 bytes=24 msg=9d29be7e42132ad9356da6e384f01972974620abef5ef24a
+----- IN PACKET -----
+POST /send HTTP/1.1
+Accept-Encoding: identity
+Content-Length: 70
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Content-Type: application/json
+Connection: close
+
+{"from": "a", "to": "b", "cipher": "1dfd2c97f33f4707c438fbe637b20e75"}
+----- END PACKET -----
+2025-10-24 13:20:50 [RECV] from=a to=b bytes=16 msg=1dfd2c97f33f4707c438fbe637b20e75
+----- OUT PACKET -----
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 16
+Connection: close
+
+{"queued": true}
+----- END PACKET -----
+----- IN PACKET -----
+POST /send HTTP/1.1
+Accept-Encoding: identity
+Content-Length: 70
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Content-Type: application/json
+Connection: close
+
+{"from": "a", "to": "b", "cipher": "1dfd2c97f33f4707c438fbe637b20e75"}
+----- END PACKET -----
+2025-10-24 13:35:13 [RECV] from=a to=b bytes=16 msg=1dfd2c97f33f4707c438fbe637b20e75
+----- OUT PACKET -----
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 16
+Connection: close
+
+{"queued": true}
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+POST /send HTTP/1.1
+Accept-Encoding: identity
+Content-Length: 70
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Content-Type: application/json
+Connection: close
+
+{"from": "b", "to": "a", "cipher": "1dfd2c97f33f4707c438fbe637b20e75"}
+----- END PACKET -----
+2025-10-24 13:35:35 [RECV] from=b to=a bytes=16 msg=1dfd2c97f33f4707c438fbe637b20e75
+2025-10-24 13:35:35 [SEND] to=a from=b bytes=16 msg=1dfd2c97f33f4707c438fbe637b20e75
+----- OUT PACKET -----
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 16
+Connection: close
+
+{"queued": true}
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 56
+Connection: close
+
+{"from": "b", "msg": "1dfd2c97f33f4707c438fbe637b20e75"}
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8081
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----
+----- IN PACKET -----
+GET /recv?client=a&wait=30 HTTP/1.1
+Accept-Encoding: identity
+Host: 127.0.0.1:8082
+User-Agent: Python-urllib/3.12
+Connection: close
+
+
+----- END PACKET -----
+----- OUT PACKET -----
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+----- END PACKET -----

@@ -20,6 +20,19 @@ def log_event(kind: str, info: str):
         pass
 
 
+def log_packet(direction: str, text: str):
+    # direction: IN or OUT
+    border = f"----- {direction} PACKET -----"
+    print(border)
+    print(text.rstrip('\n'))
+    print("----- END PACKET -----", flush=True)
+    try:
+        with open('server.log', 'a', encoding='utf-8') as f:
+            f.write(border + "\n" + text + "\n----- END PACKET -----\n")
+    except Exception:
+        pass
+
+
 def enqueue(recipient: str, payload: dict):
     with cond:
         inboxes.setdefault(recipient, []).append(payload)
@@ -34,8 +47,8 @@ def dequeue(recipient: str):
         return None
 
 
-def parse_request(conn) -> tuple[str, str, str, dict, bytes]:
-    # Returns: method, path, version, headers, body
+def parse_request(conn) -> tuple[str, str, str, dict, bytes, bytes]:
+    # Returns: method, path, version, headers, body, raw_request
     data = b''
     while b"\r\n\r\n" not in data:
         chunk = conn.recv(4096)
@@ -45,12 +58,12 @@ def parse_request(conn) -> tuple[str, str, str, dict, bytes]:
     header_part, _, rest = data.partition(b"\r\n\r\n")
     lines = header_part.decode('iso-8859-1').split("\r\n")
     if not lines:
-        return '', '', '', {}, b''
+        return '', '', '', {}, b'', data
     request_line = lines[0]
     try:
         method, path, version = request_line.split(' ', 2)
     except ValueError:
-        return '', '', '', {}, b''
+        return '', '', '', {}, b'', data
     headers = {}
     for line in lines[1:]:
         if not line:
@@ -65,10 +78,11 @@ def parse_request(conn) -> tuple[str, str, str, dict, bytes]:
         if not chunk:
             break
         body += chunk
-    return method, path, version, headers, body[:length]
+    raw = header_part + b"\r\n\r\n" + body[:length]
+    return method, path, version, headers, body[:length], raw
 
 
-def send_response(conn, status: int, reason: str, headers: dict, body: bytes):
+def send_response(conn, status: int, reason: str, headers: dict, body: bytes, packet_preview: bool = True):
     # Ensure mandatory headers
     hdrs = dict(headers or {})
     if 'Content-Length' not in {k.title(): v for k, v in hdrs.items()}:
@@ -82,6 +96,11 @@ def send_response(conn, status: int, reason: str, headers: dict, body: bytes):
         lines.append(f"{k}: {v}\r\n")
     lines.append("\r\n")
     payload = ''.join(lines).encode('iso-8859-1') + (body or b'')
+    if packet_preview:
+        # Log a textual version of the response for visibility (truncate body to 512 bytes)
+        preview_body = (body or b'')[:512]
+        text = ''.join(lines) + (preview_body.decode('utf-8', errors='replace'))
+        log_packet('OUT', text)
     try:
         conn.sendall(payload)
     except Exception:
@@ -91,10 +110,20 @@ def send_response(conn, status: int, reason: str, headers: dict, body: bytes):
 
 def handle_client(conn, addr):
     try:
-        method, path, version, headers, body = parse_request(conn)
+        method, path, version, headers, body, raw_req = parse_request(conn)
         if not method:
             send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
             return
+        # Log the incoming packet (truncate body preview)
+        try:
+            # Limit to first 1024 bytes for log
+            header_part = raw_req.split(b"\r\n\r\n", 1)[0].decode('iso-8859-1', errors='replace')
+            body_part = raw_req.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in raw_req else b''
+            preview = body_part[:512]
+            text = header_part + "\r\n\r\n" + preview.decode('utf-8', errors='replace')
+            log_packet('IN', text)
+        except Exception:
+            pass
         parsed = urlparse(path)
         if method == 'POST' and parsed.path == '/send':
             try:
@@ -102,19 +131,29 @@ def handle_client(conn, addr):
             except Exception:
                 send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
                 return
-            required = {'from', 'to', 'msg'}
+            required = {'from', 'to'}
             if not required.issubset(payload.keys()):
+                send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
+                return
+            # Accept 'cipher' or legacy 'msg' key
+            cipher_hex = payload.get('cipher') or payload.get('msg')
+            if not isinstance(cipher_hex, str):
                 send_response(conn, 400, 'Bad Request', {'Content-Type': 'text/plain'}, b'')
                 return
             # Log the received message (encrypted hex)
             try:
-                msg_hex = str(payload.get('msg', ''))
+                msg_hex = str(cipher_hex)
                 msg_bytes = len(msg_hex) // 2
             except Exception:
                 msg_hex = '<invalid>'
                 msg_bytes = 0
             log_event('RECV', f"from={payload.get('from','')} to={payload.get('to','')} bytes={msg_bytes} msg={msg_hex}")
-            enqueue(payload['to'], {'from': payload['from'], 'msg': payload['msg']})
+            # Pass through extra fields (e.g., type, filename, mimetype, size)
+            forwarded = {'from': payload['from'], 'msg': cipher_hex}
+            for k in ('type', 'filename', 'mimetype', 'size'):
+                if k in payload:
+                    forwarded[k] = payload[k]
+            enqueue(payload['to'], forwarded)
             resp = json.dumps({'queued': True}).encode('utf-8')
             send_response(conn, 200, 'OK', {'Content-Type': 'application/json', 'Content-Length': str(len(resp))}, resp)
             return
