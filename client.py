@@ -5,6 +5,8 @@ import threading
 import os
 import time
 import mimetypes
+import subprocess
+import platform
 from urllib.request import Request, urlopen
 from urllib.parse import urlparse
 from des_traditional import encrypt_ecb_bytes, decrypt_ecb_bytes
@@ -224,6 +226,39 @@ def start_embedded_server_if_needed(base_url: str):
         print(f"[warn] Failed to start embedded relay: {e}")
 
 
+def _is_ipv4(addr: str) -> bool:
+    try:
+        socket.inet_aton(addr)
+        # Reject forms with trailing junk
+        parts = addr.split('.')
+        if len(parts) != 4:
+            return False
+        return all(0 <= int(p) <= 255 for p in parts)
+    except Exception:
+        return False
+
+
+def can_ping(host: str, timeout_ms: int = 1000) -> bool:
+    """Return True if host responds to one ICMP echo.
+
+    Uses platform ping command to avoid raw socket permissions.
+    Windows: ping -n 1 -w <ms>
+    Unix   : ping -c 1 -W <sec>
+    """
+    try:
+        system = platform.system().lower()
+        if system.startswith('win'):
+            cmd = ['ping', '-n', '1', '-w', str(max(1, timeout_ms)), host]
+        else:
+            # -W is seconds on Linux; macOS uses milliseconds but accepts seconds fine for 1s
+            sec = max(1, int(round(timeout_ms / 1000.0)))
+            cmd = ['ping', '-c', '1', '-W', str(sec), host]
+        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
 def render_http(method: str, path: str, headers: dict, body: bytes) -> str:
     lines = [f"{method} {path} HTTP/1.1\r\n"]
     for k, v in headers.items():
@@ -338,6 +373,15 @@ def main():
         print(f"[info] Using my_id={my_id}")
         if peer_id:
             print(f"[info] Peer set to {peer_id}")
+            # If user provided an IP-like peer, try a quick ping before initiating chat
+            if _is_ipv4(peer_id):
+                print(f"[info] Pinging {peer_id} to check reachability...")
+                ok = can_ping(peer_id, timeout_ms=1000)
+                if ok:
+                    print("[info] Ping OK. Proceeding with chat.")
+                else:
+                    print("[info] Ping failed. Will idle in listen mode; you can set peer later with /to <peer_id>.")
+                    peer_id = None
         else:
             # Prompt once to allow immediate chatting without /to
             try:
