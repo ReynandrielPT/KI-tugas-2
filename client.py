@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from des_traditional import encrypt_ecb_bytes, decrypt_ecb_bytes
 
 KEY = b'8bytekey'  # 8-byte DES key (64-bit with parity)
-SERVER_DEFAULT = 'http://172.168.100.1:8080'  # default relay server base
+SERVER_DEFAULT = 'http://172.16.16.102:8080'  # default relay server base
 
 
 
