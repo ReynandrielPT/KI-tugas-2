@@ -47,7 +47,7 @@ python chat_simple.py clientB clientA
 
 ## Catatan
 
- * Jika ingin menggunakan beda mesin lokal, dapat mengubah nilai `SERVER_DEFAULT` pada `client2.py` ke IP yang sesuai.
+ * Jika ingin menggunakan beda mesin lokal, dapat mengubah nilai `SERVER_DEFAULT` pada `client2.py` salah satu mesin menjadi IP client yang lain (yang selain yang diubah). Sementara `SERVER_DEFAULT` yang diarahkan (bekerja sebagai relay/listener) tetap localhost. Kemudian `client2.py` yang digunakan IPnya (diarahkan) harus dijalankan terlebih dahulu. 
 
 ---
 
