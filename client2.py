@@ -170,7 +170,7 @@ def start_embedded_server_if_needed(base_url: str):
     except Exception:
         pass
     parsed = urlparse(base_url)
-    host = '127.0.0.1'
+    host = '0.0.0.0'
     port = int(parsed.port or (443 if parsed.scheme == 'https' else 80))
     try:
         threading.Thread(target=_embedded_server_loop, args=(host, port), daemon=True).start()

@@ -1,9 +1,5 @@
-# Classic DES implementation mirroring DES.cpp behavior using bit-string operations.
-# Educational purpose: matches tables and round flow of traditional DES.
-
 from typing import List
 
-# Tables
 IP = [
     58, 50, 42, 34, 26, 18, 10, 2,
     60, 52, 44, 36, 28, 20, 12, 4,
@@ -187,7 +183,6 @@ def feistel(r32: str, subkey48: str) -> str:
 
 
 def generate_subkeys(key64bits: str) -> List[str]:
-    # key64bits: 64-bit string including parity bits
     key56 = permute(key64bits, PC1)
     c = key56[:28]
     d = key56[28:]
@@ -212,11 +207,8 @@ def des_bits(block64: str, subkeys: List[str], encrypt: bool) -> str:
 
 
 def encrypt_ecb_bytes(data: bytes, key8: bytes) -> bytes:
-    # Convert to bitstrings and use the classic flow
-    # We treat key as 64 bits (parity ignored beyond bit position).
     key_bits = ''.join(format(b, '08b') for b in key8)
     subs = generate_subkeys(key_bits)
-    # PKCS#5 padding
     block = 8
     pad = block - (len(data) % block)
     data_padded = data + bytes([pad] * pad)
@@ -248,8 +240,6 @@ def decrypt_ecb_bytes(data: bytes, key8: bytes) -> bytes:
 
 
 if __name__ == '__main__':
-    # Optional quick demo/vector (NIST):
-    # key = 0x133457799BBCDFF1, pt = 0x0123456789ABCDEF -> ct = 0x85E813540F0AB405
     key = bytes.fromhex('133457799BBCDFF1')
     pt = bytes.fromhex('0123456789ABCDEF')
     ct = encrypt_ecb_bytes(pt, key)
