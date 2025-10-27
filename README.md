@@ -39,6 +39,14 @@ python chat_simple.py clientB clientA
       * Di **Terminal 1 (clientA)**, ketik `/to clientB` lalu Enter (untuk mengatur target).
       * Sekarang ketik `Halo clientB!` lalu Enter.
       * Pesan akan muncul di **Terminal 2 (clientB)**.
+   
+---
+
+**Kontributor:**
+
+- ReynandrielPT
+- Amtsal99
+
 
 ## Perintah
 
