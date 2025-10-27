@@ -11,7 +11,7 @@ Buka **dua terminal** di folder yang sama.
 ### 1. Terminal 1 (Klien Pertama, cth: "clientA")
 
 Jalankan ini dulu. Klien ini akan otomatis menjadi server relay.
-```bash
+```
 python client2.py clientA
 ````
   * Saat ditanya `[setup] Enter peer id to chat...`, tekan **Enter** saja.
@@ -21,7 +21,7 @@ python client2.py clientA
 
 Jalankan di terminal baru, dengan target "clientA".
 
-```bash
+```
 # Format: python chat_simple.py <ID_SAYA> <ID_TEMAN>
 python chat_simple.py clientB clientA
 ```
@@ -44,6 +44,10 @@ python chat_simple.py clientB clientA
 
   * `/to <id_client>`: Mengatur siapa penerima pesan.
   * `/quit`: Keluar dari chat.
+
+## Catatan
+
+ * Jika ingin menggunakan beda mesin lokal, dapat mengubah nilai `SERVER_DEFAULT` pada `client2.py` ke IP yang sesuai.
 
 ---
 
