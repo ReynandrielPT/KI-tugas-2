@@ -1,69 +1,48 @@
-# KI-tugas-2
+# Simple Encrypted Chat
 
-## Encrypted Chat Client (`client2.py`)
+* Python 3.x
+* File `client2.py`
+* File `des_traditional.py` (tool enkripsi dan dekripsi)
 
-This project provides a simple encrypted chat client using DES encryption and HTTP for message relay.
+## Cara Penggunaan
 
----
+Buka **dua terminal** di folder yang sama.
 
-## Requirements
+### 1. Terminal 1 (Klien Pertama, cth: "clientA")
 
-- Python 3.x
-- `des_traditional.py` module (must be present in the same directory as `client2.py`)
+Jalankan ini dulu. Klien ini akan otomatis menjadi server relay.
+```bash
+python client2.py clientA
+````
+  * Saat ditanya `[setup] Enter peer id to chat...`, tekan **Enter** saja.
+  * Biarkan terminal ini terbuka.
 
----
+### 2\. Terminal 2 (Klien Kedua, cth: "clientB")
 
-## Usage
+Jalankan di terminal baru, dengan target "clientA".
 
-### 1. Prepare the Environment
+```bash
+# Format: python chat_simple.py <ID_SAYA> <ID_TEMAN>
+python chat_simple.py clientB clientA
+```
+  * Terminal ini sekarang bisa langsung mengirim pesan ke "clientA".
 
-- Ensure `client2.py` and `des_traditional.py` are in the same folder.
-- Install Python 3 if not already installed.
+### 3\. Mengobrol
 
-### 2. Start the Client
+  * **Dari clientB ke clientA:**
 
-Open a terminal in the project directory and run:
+      * Di **Terminal 2 (clientB)**, ketik `Halo clientA!` lalu Enter.
+      * Pesan akan muncul di **Terminal 1 (clientA)**.
+
+  * **Dari clientA ke clientB:**
+
+      * Di **Terminal 1 (clientA)**, ketik `/to clientB` lalu Enter (untuk mengatur target).
+      * Sekarang ketik `Halo clientB!` lalu Enter.
+      * Pesan akan muncul di **Terminal 2 (clientB)**.
+
+## Perintah
+
+  * `/to <id_client>`: Mengatur siapa penerima pesan.
+  * `/quit`: Keluar dari chat.
 
 ```
-python client2.py <my_id> [peer_id]
-```
-
-- `<my_id>`: Your unique chat ID (required)
-- `[peer_id]`: The ID of the person you want to chat with (optional; can be set later)
-
-#### Example:
-
-```
-python client2.py alice bob
-```
-
-### 3. Commands in Chat
-
-- `/to <peer_id>`: Set or change the peer you want to chat with.
-- `/quit`: Exit the chat client.
-
-### 4. How It Works
-
-- Messages are encrypted with DES before sending.
-- The client communicates with a relay server (default: `http://127.0.0.1:8001`).
-- If the relay server is not running, an embedded server will start locally.
-
----
-
-## Notes
-
-- You must provide the `des_traditional.py` file with `encrypt_ecb_bytes` and `decrypt_ecb_bytes` functions for encryption to work.
-- The client will print both the encrypted and decrypted messages for clarity.
-
----
-
-## Troubleshooting
-
-- If you see errors about missing `des_traditional.py`, add the required file.
-- If the server is unreachable, check your network or firewall settings.
-
----
-
-## License
-
-MIT
